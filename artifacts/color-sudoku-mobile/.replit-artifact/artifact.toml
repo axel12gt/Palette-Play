@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/color-sudoku-mobile/"
+title = "Color Sudoku Mobile"
+description = "A native Android color Sudoku game for all ages, with adaptive phone layouts, one-touch color placement, notes, daily challenges, progressive themes, and locally saved puzzles."
+version = "1.0.0"
+id = "artifacts/color-sudoku-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/color-sudoku-mobile/" ]
+localPort = 25394
+
+[services.development]
+run = "pnpm --filter @workspace/color-sudoku-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/color-sudoku-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/color-sudoku-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "25394"
+BASE_PATH = "/color-sudoku-mobile/"
