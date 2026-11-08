@@ -1,0 +1,1 @@
+- [Color Sudoku product constraints](color-sudoku-product.md) — keep the game visual, non-numeric, and approachable for children.

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Color Sudoku"
+description = "A touch-friendly, non-numeric Sudoku game for all ages, with nine colors, five difficulty levels, uniquely solvable randomized puzzles, notes, themes, daily play, and optional hints."
+version = "1.0.0"
+id = "artifacts/color-sudoku"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25198
+
+[services.development]
+run = "pnpm --filter @workspace/color-sudoku run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/color-sudoku", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/color-sudoku/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25198"
+BASE_PATH = "/"
