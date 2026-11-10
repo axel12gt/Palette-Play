@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { boardModes } from '@/lib/sudoku';
+import RankingPrivacyControls from '@/components/RankingPrivacyControls';
 import type { useColorSudokuGame } from '@/hooks/useColorSudokuGame';
 import { AdBanner, FONT, THEME_OPTIONS, TopBar, useInsets, useScene } from '@/components/Scene';
 
@@ -67,6 +68,7 @@ export default function AddonsScreen({ game }: { game: Game }) {
       >
         <AdBanner scene={scene} />
         <TopBar scene={scene} title="Add-ons" onBack={() => game.onNavigate('home')} />
+        <RankingPrivacyControls scene={scene} busy={game.busy} onDelete={game.onDeleteRankingData} />
 
         <Section title="Board modes" note="Every board size is free to play.">
           {boardModes.map((m) => (

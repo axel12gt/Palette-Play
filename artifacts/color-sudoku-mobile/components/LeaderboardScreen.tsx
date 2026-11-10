@@ -86,7 +86,8 @@ export default function LeaderboardScreen({ game }: { game: Game }) {
         setPlayerId(p.id);
         setPlayerName(p.name);
       })
-      .catch(() => setIdentityError('Could not connect to rankings. Check your connection.'));
+      .catch((err: unknown) => setIdentityError(err instanceof Error && err.message.includes('Online rankings are off')
+        ? err.message : 'Could not connect to rankings. Check your connection.'));
   }, []);
 
   useEffect(() => {
@@ -210,6 +211,10 @@ export default function LeaderboardScreen({ game }: { game: Game }) {
           scene={scene}
           tone="info"
           text="Only ranked puzzles issued online by our server count. Times use the server clock from issue to completion, so pauses and time in the background are included."
+        />
+        <Notice scene={scene} tone="info"
+          text="Results are kept for their calendar month and cleared at midnight UTC on the first of the next month. Weekly and fastest rankings also lose previous-month results then. Your random name and scores are public."
+          action={{ label: 'Privacy & delete data', onPress: () => game.onNavigate('addons'), testID: 'button-ranking-privacy' }}
         />
       </ScrollView>
     </View>

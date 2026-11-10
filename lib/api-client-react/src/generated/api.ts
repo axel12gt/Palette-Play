@@ -63,6 +63,81 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
+export const getDeleteRankingProfileUrl = () => {
+
+
+
+
+  return `/api/players/me`
+}
+
+/**
+ * Requires the device bearer token. Repeating deletion with the same token succeeds without recreating a profile.
+ * @summary Permanently delete your online ranking identity and all issued puzzles and results
+ */
+export const deleteRankingProfile = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteRankingProfileUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteRankingProfileMutationKey = () => ['deleteRankingProfile'] as const;
+
+export const getDeleteRankingProfileMutationOptions = <TError = ErrorType<RequestErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRankingProfile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRankingProfile>>, TError,void, TContext> => {
+
+const mutationKey = getDeleteRankingProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRankingProfile>>, void> = () => {
+
+
+          return  deleteRankingProfile(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRankingProfileMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRankingProfile>>>
+
+    export type DeleteRankingProfileMutationError = ErrorType<RequestErrorResponse>
+
+
+    /**
+ * @summary Permanently delete your online ranking identity and all issued puzzles and results
+ */
+export const useDeleteRankingProfile = <TError = ErrorType<RequestErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRankingProfile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRankingProfile>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteRankingProfileMutationOptions(options), queryClient);
+    }
+
 export const getRegisterPlayerUrl = () => {
 
 

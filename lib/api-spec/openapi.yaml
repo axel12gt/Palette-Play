@@ -11,6 +11,18 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /players/me:
+    delete:
+      operationId: deleteRankingProfile
+      summary: Permanently delete your online ranking identity and all issued puzzles and results
+      description: Requires the device bearer token. Repeating deletion with the same token succeeds without recreating a profile.
+      security:
+        - rankingToken: []
+      responses:
+        default:
+          $ref: "#/components/responses/RequestError"
+        "204":
+          description: Online profile and results deleted, or already absent
   /players:
     post:
       operationId: registerPlayer
@@ -95,6 +107,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 components:
+  securitySchemes:
+    rankingToken:
+      type: http
+      scheme: bearer
   responses:
     RequestError:
       description: Invalid request, missing identity, expired puzzle, rate limit, or unavailable service

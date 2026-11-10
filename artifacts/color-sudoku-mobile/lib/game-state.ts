@@ -29,6 +29,12 @@ export function buildGame(difficulty: Difficulty, theme: GameTheme, dailySeed: s
 export function snapshot(game: SavedGame): UndoFrame {
   return { board: [...game.board], notes: game.notes.map((notes) => [...notes]) };
 }
+export function detachOnlineRankings(game: SavedGame): SavedGame {
+  return {
+    ...game, rankedId: null, pendingResults: [], rankingAccepted: false,
+    rankingStatus: '', status: 'Online rankings are off. Your puzzle is available as practice.',
+  };
+}
 export function conflictIndexes(board: number[], size: BoardSize): Set<number> {
   return new Set(board.flatMap((color, index) => color && !isPlacementValid(board, index, color, size) ? [index] : []));
 }

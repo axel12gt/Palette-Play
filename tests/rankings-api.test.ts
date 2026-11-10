@@ -5,6 +5,7 @@ import app from '../artifacts/api-server/src/app';
 import { pool } from '../lib/db/src/index';
 import { solvePuzzle } from '../lib/sudoku/src/index';
 import { rankingPeriod } from '../artifacts/api-server/src/lib/ranking-rules';
+import { purgeExpiredRankingData, rankingCutoff } from '../artifacts/api-server/src/lib/ranking-privacy';
 
 test('ranked API validates owner, solution, expiry, server timing, duplicates and period rankings', async () => {
   const server = app.listen(0, '127.0.0.1');
@@ -17,7 +18,7 @@ test('ranked API validates owner, solution, expiry, server timing, duplicates an
       method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       ...(data === undefined ? {} : { body: JSON.stringify(data) }),
     });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, body: response.status === 204 ? null : await response.json() };
   };
   try {
     const a = await call('/players', 'POST'), b = await call('/players', 'POST');
@@ -76,6 +77,64 @@ test('ranked API validates owner, solution, expiry, server timing, duplicates an
     await pool.query(`UPDATE sudoku_ranked_games SET started_at=now()+interval '1 second' WHERE id=$1`, [fresh.body.id]);
     assert.equal((await call(`/ranked-games/${fresh.body.id}/complete`, 'POST',
       { board: solvePuzzle(fresh.body.puzzle, 4) }, a.body.token)).status, 400);
+
+    // Deletion is authenticated, self-scoped, transactional and retryable.
+    assert.equal((await call('/players/me', 'DELETE')).status, 401);
+    assert.equal((await call('/players/me', 'DELETE', undefined, 'invalid')).status, 401);
+    assert.equal((await call('/players/me', 'DELETE', undefined, a.body.token)).status, 204);
+    assert.equal((await call('/players/me', 'DELETE', undefined, a.body.token)).status, 204);
+    assert.equal((await pool.query('SELECT id FROM sudoku_players WHERE id=$1', [a.body.id])).rowCount, 0);
+    assert.equal((await pool.query('SELECT id FROM sudoku_ranked_games WHERE player_id=$1', [a.body.id])).rowCount, 0);
+    assert.equal((await pool.query('SELECT id FROM sudoku_players WHERE id=$1', [b.body.id])).rowCount, 1);
+    assert.equal((await call('/ranked-games', 'POST', input, a.body.token)).status, 401);
+    const afterDelete = await call('/leaderboards?size=4&difficulty=very-easy&kind=weekly');
+    assert.ok(!afterDelete.body.entries.some((entry: { playerId: string }) => entry.playerId === a.body.id));
+
+    // Sweep boundary: previous-month results and idle profiles go; midnight on day one is retained.
+    const c = await call('/players', 'POST'), d = await call('/players', 'POST');
+    players.push(c.body.id, d.body.id);
+    const old = await call('/ranked-games', 'POST', input, c.body.token);
+    const recent = await call('/ranked-games', 'POST', input, d.body.token);
+    const now = new Date(), cutoff = rankingCutoff(now);
+    assert.equal(cutoff.toISOString(), new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString());
+    for (const [date, expected] of [
+      ['2028-02-29T23:59:59.999Z', '2028-02-01T00:00:00.000Z'],
+      ['2028-03-01T00:00:00.000Z', '2028-03-01T00:00:00.000Z'],
+      ['2027-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z'],
+      ['2026-12-31T23:59:59.999Z', '2026-12-01T00:00:00.000Z'],
+      ['2026-11-01T00:30:00+02:00', '2026-10-01T00:00:00.000Z'],
+    ]) assert.equal(rankingCutoff(new Date(date)).toISOString(), expected);
+    await pool.query('UPDATE sudoku_players SET created_at=$1 WHERE id=ANY($2::uuid[])',
+      [new Date(cutoff.getTime() - 86400000), [c.body.id, d.body.id]]);
+    await pool.query('UPDATE sudoku_ranked_games SET started_at=$1, completed_at=$1, elapsed_ms=10000 WHERE id=$2',
+      [new Date(cutoff.getTime() - 1), old.body.id]);
+    await pool.query('UPDATE sudoku_ranked_games SET started_at=$1 WHERE id=$2',
+      [cutoff, recent.body.id]);
+    await purgeExpiredRankingData(now);
+    assert.equal((await pool.query('SELECT id FROM sudoku_players WHERE id=$1', [c.body.id])).rowCount, 0);
+    assert.equal((await pool.query('SELECT id FROM sudoku_ranked_games WHERE id=$1', [old.body.id])).rowCount, 0);
+    assert.equal((await pool.query('SELECT id FROM sudoku_players WHERE id=$1', [d.body.id])).rowCount, 1);
+    assert.equal((await pool.query('SELECT id FROM sudoku_ranked_games WHERE id=$1', [recent.body.id])).rowCount, 1);
+    assert.equal((await call('/players/me', 'DELETE', undefined, c.body.token)).status, 204);
+
+    // A previous-month unfinished puzzle cannot become a current-month score,
+    // even before the next physical sweep and even with a future expiry.
+    const monthExpired = await call('/ranked-games', 'POST', input, d.body.token);
+    await pool.query('UPDATE sudoku_ranked_games SET started_at=$1 WHERE id=$2',
+      [new Date(cutoff.getTime() - 1), monthExpired.body.id]);
+    assert.equal((await call(`/ranked-games/${monthExpired.body.id}/complete`, 'POST',
+      { board: solvePuzzle(monthExpired.body.puzzle, 4) }, d.body.token)).status, 410);
+
+    // Deletion racing issuance must not recreate a profile or leave orphan games.
+    const e = await call('/players', 'POST');
+    players.push(e.body.id);
+    const racing = await Promise.all([
+      call('/ranked-games', 'POST', input, e.body.token),
+      call('/players/me', 'DELETE', undefined, e.body.token),
+    ]);
+    assert.ok([201, 401].includes(racing[0].status));
+    assert.equal(racing[1].status, 204);
+    assert.equal((await pool.query('SELECT id FROM sudoku_ranked_games WHERE player_id=$1', [e.body.id])).rowCount, 0);
   } finally {
     await pool.query('DELETE FROM sudoku_ranked_games WHERE player_id=ANY($1::uuid[])', [players]);
     await pool.query('DELETE FROM sudoku_players WHERE id=ANY($1::uuid[])', [players]);

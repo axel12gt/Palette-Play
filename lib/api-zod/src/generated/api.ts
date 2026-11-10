@@ -9,6 +9,13 @@ import * as zod from 'zod';
 
 
 /**
+ * Requires the device bearer token. Repeating deletion with the same token succeeds without recreating a profile.
+ * @summary Permanently delete your online ranking identity and all issued puzzles and results
+ */
+export const DeleteRankingProfileResponse = zod.void()
+
+
+/**
  * @summary Create an anonymous ranking identity
  */
 export const RegisterPlayerResponse = zod.object({

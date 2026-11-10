@@ -6,8 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { paletteByTheme, type GameTheme } from '@/constants/colors';
 import { createDailySeed, difficulties, isPlacementValid, modeFor, solvePuzzle, type Difficulty, type BoardSize } from '@/lib/sudoku';
-import { buildGame, conflictIndexes, parseSavedGame, snapshot, type SavedGame, type Screen } from '@/lib/game-state';
-import { ensurePlayer } from '@/lib/rankings';
+import { buildGame, conflictIndexes, detachOnlineRankings, parseSavedGame, snapshot, type SavedGame, type Screen } from '@/lib/game-state';
+import { deleteOnlineRankingProfile, ensurePlayer, onlineRankingsBlocked, rankingPrivacy } from '@/lib/rankings';
 
 const STORAGE_KEY = 'color-sudoku-mobile.save.v1';
 const THEME_UNLOCKS: Partial<Record<GameTheme, number>> = { pastel: 1, neon: 3, dark: 5 };
@@ -30,8 +30,11 @@ export function useColorSudokuGame() {
 
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (active && raw) setGame(parseSavedGame(raw));
+    Promise.all([AsyncStorage.getItem(STORAGE_KEY), rankingPrivacy()]).then(([raw, privacy]) => {
+      if (active && raw) {
+        const saved = parseSavedGame(raw);
+        setGame(privacy === 'active' ? saved : detachOnlineRankings(saved));
+      }
     }).catch((err) => {
       writable.current = false;
       if (active) setSaveError(err instanceof Error ? err.message : 'Could not read your saved puzzle. Storage has not been overwritten.');
@@ -63,7 +66,7 @@ export function useColorSudokuGame() {
   }, []);
 
   const submitResult = useCallback(async (current: SavedGame) => {
-    if (!current.pendingResults.length || submission.current) return;
+    if (!current.pendingResults.length || submission.current || onlineRankingsBlocked()) return;
     submission.current = true;
     try {
       await ensurePlayer();
@@ -80,10 +83,10 @@ export function useColorSudokuGame() {
             } : {}),
           }));
         } catch (err) {
-          if ((err as { status?: number }).status === 410) {
+          if ([404, 410].includes((err as { status?: number }).status ?? 0)) {
             setGame((value) => ({
               ...value, pendingResults: value.pendingResults.filter((item) => item.id !== id),
-              ...(value.rankedId === id ? { rankingStatus: 'This ranked puzzle expired. Your local completion is saved.' } : {}),
+              ...(value.rankedId === id ? { rankingStatus: 'This ranked puzzle expired or was cleared at the monthly reset. Your local completion is saved.' } : {}),
             }));
           } else throw err;
         }
@@ -180,9 +183,23 @@ export function useColorSudokuGame() {
     } catch (err) {
       setError((err as { status?: number }).status === 429
         ? 'Ranked play limit reached. Try practice or come back later.'
+        : onlineRankingsBlocked() ? 'Online rankings are off. Open Add-ons → Privacy to enable them or finish deletion.'
         : 'Could not start ranked play. Your saved puzzle is unchanged. Check your connection and retry.');
     } finally { busyRef.current = false; setBusy(false); }
   }, [ready]);
+  const onDeleteRankingData = useCallback(async () => {
+    if (!ready || busyRef.current || submission.current || !writable.current) {
+      throw new Error('Please wait for saving or online play to finish, then try again.');
+    }
+    busyRef.current = true; setBusy(true);
+    try {
+      await deleteOnlineRankingProfile();
+      setGame((current) => detachOnlineRankings(current));
+      // Remove cached personal standings before another profile can be enabled.
+      await queryClient.cancelQueries({ queryKey: ['/api/leaderboards'] });
+      queryClient.removeQueries({ queryKey: ['/api/leaderboards'] });
+    } finally { busyRef.current = false; setBusy(false); }
+  }, [ready, queryClient]);
   const onThemeChange = useCallback((theme: GameTheme) => setGame((current) =>
     theme !== 'classic' && current.completedGames < (THEME_UNLOCKS[theme] ?? Infinity) ? current
       : { ...current, theme }), []);
@@ -197,7 +214,7 @@ export function useColorSudokuGame() {
     elapsed: formatTime(game.elapsedSeconds), canUndo: game.history.length > 0,
     hintPrice: '$0.25', hintAvailable: false, difficultyOptions: difficulties,
     onColorSelect, onCellSelect, onToggleNotes, onClear, onUndo, onPause, onResume, onHome,
-    onNavigate, onNewGame, onDailyChallenge, onStartRanked, onThemeChange,
+    onNavigate, onNewGame, onDailyChallenge, onStartRanked, onThemeChange, onDeleteRankingData,
     onHint: () => undefined,
     onRetryRanking: () => void submitResult(game),
   };

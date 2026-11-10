@@ -1,8 +1,31 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { boardModes, countSolutions, difficulties, generatePuzzle, getCandidates, isPlacementValid, solvePuzzle } from '../lib/sudoku/src/index';
-import { buildGame, parseSavedGame, snapshot } from '../artifacts/color-sudoku-mobile/lib/game-state';
+import { buildGame, detachOnlineRankings, parseSavedGame, snapshot } from '../artifacts/color-sudoku-mobile/lib/game-state';
 import { rankingPeriod, matchesSolution } from '../artifacts/api-server/src/lib/ranking-rules';
+
+test('online deletion preserves offline board, notes, timer, history and earned themes', () => {
+  const game = buildGame('medium', 'pastel', null, 6, 6);
+  const index = game.board.indexOf(0);
+  game.notes[index] = [1, 3];
+  game.history.push(snapshot(game));
+  game.board[index] = game.solution[index];
+  game.elapsedSeconds = 83;
+  game.rankedId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  game.pendingResults = [{ id: game.rankedId, board: [...game.solution] }];
+  game.rankingAccepted = true;
+  const offline = detachOnlineRankings(game);
+  assert.deepEqual(offline.board, game.board);
+  assert.deepEqual(offline.notes, game.notes);
+  assert.deepEqual(offline.history, game.history);
+  assert.equal(offline.theme, game.theme);
+  assert.equal(offline.completedGames, game.completedGames);
+  assert.equal(offline.elapsedSeconds, game.elapsedSeconds);
+  assert.equal(offline.rankedId, null);
+  assert.deepEqual(offline.pendingResults, []);
+  assert.equal(offline.rankingAccepted, false);
+  assert.equal(game.rankedId, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+});
 
 for (const mode of boardModes) {
   for (const level of difficulties) {

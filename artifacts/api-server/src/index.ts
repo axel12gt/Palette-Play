@@ -1,5 +1,12 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { cleanupRankingDataIfDue } from "./lib/ranking-privacy";
+
+const cleanup = () => cleanupRankingDataIfDue().catch((err: unknown) => {
+  logger.error({ err }, 'Ranking privacy cleanup failed; will retry on the next request or hourly run');
+});
+void cleanup();
+setInterval(() => { void cleanup(); }, 3600000).unref();
 
 const rawPort = process.env["PORT"];
 
