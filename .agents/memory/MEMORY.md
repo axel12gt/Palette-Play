@@ -1,1 +1,2 @@
 - [Color Sudoku product constraints](color-sudoku-product.md) — keep the game visual, non-numeric, and approachable for children.
+- [Ranking trust and timing](ranking-policy.md) — ranked puzzles use server time including pauses; offline practice remains separate.

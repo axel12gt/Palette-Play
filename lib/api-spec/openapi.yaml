@@ -11,6 +11,76 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /players:
+    post:
+      operationId: registerPlayer
+      summary: Create an anonymous ranking identity
+      responses:
+        default:
+          $ref: "#/components/responses/RequestError"
+        "201":
+          description: Player created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerIdentity"
+  /ranked-games:
+    post:
+      operationId: startRankedGame
+      summary: Issue a server-owned ranked puzzle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RankedGameInput"
+      responses:
+        default:
+          $ref: "#/components/responses/RequestError"
+        "201":
+          description: Puzzle issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RankedPuzzle"
+  /ranked-games/{id}/complete:
+    post:
+      operationId: completeRankedGame
+      summary: Validate and record a completed puzzle
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletionInput"
+      responses:
+        default:
+          $ref: "#/components/responses/RequestError"
+        "200":
+          description: Verified completion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionReceipt"
+  /leaderboards:
+    get:
+      operationId: getLeaderboard
+      summary: Current UTC period rankings for matching modes
+      parameters:
+        - { name: size, in: query, required: true, schema: { type: integer, enum: [4, 6, 9] } }
+        - { name: difficulty, in: query, required: true, schema: { $ref: "#/components/schemas/Difficulty" } }
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [weekly, monthly, speed] } }
+      responses:
+        default:
+          $ref: "#/components/responses/RequestError"
+        "200":
+          description: Current rankings and your standing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
   /healthz:
     get:
       operationId: healthCheck
@@ -25,7 +95,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 components:
+  responses:
+    RequestError:
+      description: Invalid request, missing identity, expired puzzle, rate limit, or unavailable service
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RequestError"
   schemas:
+    RequestError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    Difficulty:
+      type: string
+      enum: [very-easy, easy, medium, hard, expert]
+    PlayerIdentity:
+      type: object
+      required: [id, name, token]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        token: { type: string }
+    RankedGameInput:
+      type: object
+      required: [size, difficulty]
+      properties:
+        size: { type: integer, enum: [4, 6, 9] }
+        difficulty: { $ref: "#/components/schemas/Difficulty" }
+    RankedPuzzle:
+      type: object
+      required: [id, puzzle, size, difficulty, startedAt, expiresAt]
+      properties:
+        id: { type: string }
+        puzzle: { type: array, items: { type: integer } }
+        size: { type: integer, enum: [4, 6, 9] }
+        difficulty: { $ref: "#/components/schemas/Difficulty" }
+        startedAt: { type: string }
+        expiresAt: { type: string }
+    CompletionInput:
+      type: object
+      required: [board]
+      properties:
+        board: { type: array, minItems: 16, maxItems: 81, items: { type: integer, minimum: 1, maximum: 9 } }
+    CompletionReceipt:
+      type: object
+      required: [accepted, elapsedMs]
+      properties:
+        accepted: { type: boolean }
+        elapsedMs: { type: integer }
+    LeaderboardEntry:
+      type: object
+      required: [rank, playerId, name, value]
+      properties:
+        rank: { type: integer }
+        playerId: { type: string }
+        name: { type: string }
+        value: { type: integer }
+    Leaderboard:
+      type: object
+      required: [kind, periodStart, periodEnd, entries, ownRank]
+      properties:
+        kind: { type: string, enum: [weekly, monthly, speed] }
+        periodStart: { type: string }
+        periodEnd: { type: string }
+        entries: { type: array, items: { $ref: "#/components/schemas/LeaderboardEntry" } }
+        ownRank:
+          anyOf:
+            - { $ref: "#/components/schemas/LeaderboardEntry" }
+            - { type: "null" }
     HealthStatus:
       type: object
       properties:

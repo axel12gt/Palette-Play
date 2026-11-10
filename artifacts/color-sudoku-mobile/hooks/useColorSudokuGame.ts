@@ -1,413 +1,204 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import { completeRankedGame, startRankedGame } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { paletteByTheme, type GameTheme } from '@/constants/colors';
-import {
-  createDailySeed,
-  difficulties,
-  generatePuzzle,
-  isPlacementValid,
-  type Difficulty,
-} from '@/lib/sudoku';
-
-type UndoFrame = {
-  board: number[];
-  notes: number[][];
-};
-
-type SavedGame = {
-  board: number[];
-  solution: number[];
-  clues: boolean[];
-  notes: number[][];
-  difficulty: Difficulty;
-  theme: GameTheme;
-  daily: boolean;
-  dailySeed: string | null;
-  elapsedSeconds: number;
-  selectedCell: number | null;
-  selectedColor: number | null;
-  notesMode: boolean;
-  paused: boolean;
-  complete: boolean;
-  completedGames: number;
-  history: UndoFrame[];
-  status: string;
-};
+import { createDailySeed, difficulties, isPlacementValid, modeFor, solvePuzzle, type Difficulty, type BoardSize } from '@/lib/sudoku';
+import { buildGame, conflictIndexes, parseSavedGame, snapshot, type SavedGame, type Screen } from '@/lib/game-state';
+import { ensurePlayer } from '@/lib/rankings';
 
 const STORAGE_KEY = 'color-sudoku-mobile.save.v1';
-const MAX_UNDO = 40;
-const THEME_UNLOCKS: Partial<Record<GameTheme, number>> = {
-  pastel: 1,
-  neon: 3,
-  dark: 5,
-};
-
-function buildGame(
-  difficulty: Difficulty,
-  theme: GameTheme,
-  daily: boolean,
-  completedGames: number,
-): SavedGame {
-  const dailySeed = daily ? createDailySeed() : null;
-  const puzzle = generatePuzzle(difficulty, dailySeed ?? `${Date.now()}-${Math.random()}`);
-  return {
-    board: [...puzzle.puzzle],
-    solution: puzzle.solution,
-    clues: puzzle.puzzle.map((color) => color !== 0),
-    notes: Array.from({ length: 81 }, () => []),
-    difficulty,
-    theme,
-    daily,
-    dailySeed,
-    elapsedSeconds: 0,
-    selectedCell: null,
-    selectedColor: null,
-    notesMode: false,
-    paused: false,
-    complete: false,
-    completedGames,
-    history: [],
-    status: 'Choose a color, then tap an empty square.',
-  };
-}
-
-function validSavedGame(value: unknown): value is SavedGame {
-  if (!value || typeof value !== 'object') return false;
-  const saved = value as SavedGame;
-  return (
-    Array.isArray(saved.board) &&
-    saved.board.length === 81 &&
-    Array.isArray(saved.solution) &&
-    saved.solution.length === 81 &&
-    Array.isArray(saved.clues) &&
-    saved.clues.length === 81 &&
-    Array.isArray(saved.notes) &&
-    saved.notes.length === 81 &&
-    Array.isArray(saved.history)
-  );
-}
-
-function conflictIndexes(board: number[]): Set<number> {
-  const conflicts = new Set<number>();
-  const groups: number[][] = [];
-  for (let row = 0; row < 9; row += 1) {
-    groups.push(Array.from({ length: 9 }, (_, column) => row * 9 + column));
-  }
-  for (let column = 0; column < 9; column += 1) {
-    groups.push(Array.from({ length: 9 }, (_, row) => row * 9 + column));
-  }
-  for (let boxRow = 0; boxRow < 3; boxRow += 1) {
-    for (let boxColumn = 0; boxColumn < 3; boxColumn += 1) {
-      const group: number[] = [];
-      for (let row = 0; row < 3; row += 1) {
-        for (let column = 0; column < 3; column += 1) {
-          group.push((boxRow * 3 + row) * 9 + boxColumn * 3 + column);
-        }
-      }
-      groups.push(group);
-    }
-  }
-  for (const group of groups) {
-    const values = new Map<number, number[]>();
-    for (const index of group) {
-      const color = board[index];
-      if (!color) continue;
-      const indexes = values.get(color) ?? [];
-      indexes.push(index);
-      values.set(color, indexes);
-    }
-    for (const indexes of values.values()) {
-      if (indexes.length > 1) indexes.forEach((index) => conflicts.add(index));
-    }
-  }
-  return conflicts;
-}
-
-function formatTime(seconds: number): string {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-function snapshot(game: SavedGame): UndoFrame {
-  return {
-    board: [...game.board],
-    notes: game.notes.map((cellNotes) => [...cellNotes]),
-  };
-}
+const THEME_UNLOCKS: Partial<Record<GameTheme, number>> = { pastel: 1, neon: 3, dark: 5 };
+const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+const editable = (game: SavedGame) => game.screen === 'game' && !game.paused && !game.complete;
 
 export function useColorSudokuGame() {
-  const [game, setGame] = useState<SavedGame>(() =>
-    buildGame('very-easy', 'classic', false, 0),
-  );
+  const [game, setGame] = useState<SavedGame>(() => ({
+    ...buildGame('very-easy', 'classic', null, 0, 9), screen: 'home', paused: true, hasPuzzle: false,
+  }));
   const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const writable = useRef(true);
+  const writeQueue = useRef(Promise.resolve());
+  const busyRef = useRef(false);
+  const submission = useRef(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (!active || !stored) return;
-        const parsed: unknown = JSON.parse(stored);
-        if (validSavedGame(parsed)) {
-          setGame({
-            ...parsed,
-            completedGames: Number.isInteger(parsed.completedGames)
-              ? parsed.completedGames
-              : 0,
-          });
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setReady(true);
-      });
-    return () => {
-      active = false;
-    };
+    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+      if (active && raw) setGame(parseSavedGame(raw));
+    }).catch((err) => {
+      writable.current = false;
+      if (active) setSaveError(err instanceof Error ? err.message : 'Could not read your saved puzzle. Storage has not been overwritten.');
+    }).finally(() => { if (active) setReady(true); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(game)).catch(
-      () => undefined,
-    );
+    if (!ready || !writable.current) return;
+    const data = JSON.stringify(game);
+    // Serialize writes: an older, slower save can never overwrite a newer move.
+    writeQueue.current = writeQueue.current.then(() => AsyncStorage.setItem(STORAGE_KEY, data))
+      .then(() => setSaveError(''))
+      .catch(() => setSaveError('Could not save on this device. Keep the app open and free some storage.'));
   }, [game, ready]);
 
   useEffect(() => {
-    if (!ready || game.paused || game.complete) return;
-    const timer = setInterval(() => {
-      setGame((current) =>
-        current.paused || current.complete
-          ? current
-          : { ...current, elapsedSeconds: current.elapsedSeconds + 1 },
-      );
-    }, 1000);
+    if (!ready || !editable(game)) return;
+    const timer = setInterval(() => setGame((current) => editable(current)
+      ? { ...current, elapsedSeconds: current.elapsedSeconds + 1 } : current), 1000);
     return () => clearInterval(timer);
-  }, [game.complete, game.paused, ready]);
-
-  const conflicts = useMemo(() => conflictIndexes(game.board), [game.board]);
-  const unlockedThemes = useMemo(
-    () =>
-      (['classic', 'pastel', 'neon', 'dark'] as GameTheme[]).filter(
-        (theme) =>
-          theme === 'classic' ||
-          game.completedGames >= (THEME_UNLOCKS[theme] ?? 0),
-      ),
-    [game.completedGames],
-  );
-
-  const onColorSelect = useCallback((colorId: number) => {
-    if (colorId < 1 || colorId > 9) return;
-    setGame((current) =>
-      current.paused || current.complete
-        ? current
-        : {
-            ...current,
-            selectedColor: colorId,
-            status: `${paletteByTheme[current.theme][colorId - 1].name} selected. Choose an empty square.`,
-          },
-    );
+  }, [ready, game.paused, game.complete, game.screen]);
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') setGame((current) => current.screen === 'game' && !current.complete
+        ? { ...current, paused: true } : current);
+    });
+    return () => listener.remove();
   }, []);
 
-  const onCellSelect = useCallback((index: number) => {
-    setGame((current) => {
-      if (
-        current.paused ||
-        current.complete ||
-        !Number.isInteger(index) ||
-        index < 0 ||
-        index > 80
-      ) {
-        return current;
-      }
-      if (current.clues[index]) {
-        return {
-          ...current,
-          selectedCell: index,
-          status: 'That color is a starting clue.',
-        };
-      }
-      const selected = { ...current, selectedCell: index };
-      if (current.selectedColor === null) return selected;
-
-      const history = [...current.history, snapshot(current)].slice(-MAX_UNDO);
-      if (current.notesMode) {
-        if (current.board[index] !== 0) {
-          return { ...selected, status: 'Pencil marks go in empty squares.' };
+  const submitResult = useCallback(async (current: SavedGame) => {
+    if (!current.pendingResults.length || submission.current) return;
+    submission.current = true;
+    try {
+      await ensurePlayer();
+      for (const result of current.pendingResults) {
+        const id = result.id;
+        setGame((value) => value.rankedId === id ? { ...value, rankingStatus: 'Checking your result online…' } : value);
+        try {
+          const receipt = await completeRankedGame(id, { board: result.board });
+          setGame((value) => ({
+            ...value, pendingResults: value.pendingResults.filter((item) => item.id !== id),
+            ...(value.rankedId === id ? {
+              rankingAccepted: true,
+              rankingStatus: `Result verified. Ranked time ${formatTime(Math.floor(receipt.elapsedMs / 1000))} (includes pauses).`,
+            } : {}),
+          }));
+        } catch (err) {
+          if ((err as { status?: number }).status === 410) {
+            setGame((value) => ({
+              ...value, pendingResults: value.pendingResults.filter((item) => item.id !== id),
+              ...(value.rankedId === id ? { rankingStatus: 'This ranked puzzle expired. Your local completion is saved.' } : {}),
+            }));
+          } else throw err;
         }
-        const notes = current.notes.map((cellNotes) => [...cellNotes]);
-        notes[index] = notes[index].includes(current.selectedColor)
-          ? notes[index].filter((color) => color !== current.selectedColor)
-          : [...notes[index], current.selectedColor].sort((a, b) => a - b);
-        return {
-          ...selected,
-          notes,
-          history,
-          status: 'Pencil mark updated.',
-        };
       }
+      await queryClient.invalidateQueries({ queryKey: ['/api/leaderboards'] });
+    } catch {
+      setGame((value) => ({ ...value, rankingStatus: 'Could not submit your result. It is saved for retry.' }));
+    } finally { submission.current = false; }
+  }, [queryClient]);
+  const pendingIds = game.pendingResults.map((result) => result.id).join(',');
+  useEffect(() => {
+    if (ready && pendingIds) void submitResult(game);
+    // Only submit on completion/load, not on status changes (errors require an explicit retry).
+  }, [ready, pendingIds, submitResult]);
 
-      const board = [...current.board];
-      board[index] = current.selectedColor;
-      const notes = current.notes.map((cellNotes) => [...cellNotes]);
-      notes[index] = [];
-      const conflict = !isPlacementValid(board, index, current.selectedColor);
-      const solved = board.every(
-        (color, cellIndex) => color !== 0 && color === current.solution[cellIndex],
-      );
-      return {
-        ...selected,
-        board,
-        notes,
-        history,
-        complete: solved,
-        completedGames: solved
-          ? current.completedGames + 1
-          : current.completedGames,
-        status: solved
-          ? 'Puzzle solved. Great work!'
-          : conflict
-            ? 'That color appears elsewhere in this row, column, or block.'
-            : 'Color placed.',
-      };
-    });
+  const onColorSelect = useCallback((color: number) => setGame((current) =>
+    !editable(current) || color < 1 || color > current.size ? current : {
+      ...current, selectedColor: color,
+      status: `${paletteByTheme[current.theme][color - 1].name} selected. Choose an empty square.`,
+    }), []);
+  const onCellSelect = useCallback((index: number) => setGame((current) => {
+    if (!editable(current) || !Number.isInteger(index) || index < 0 || index >= current.board.length) return current;
+    const selected = { ...current, selectedCell: index };
+    if (current.clues[index]) return { ...selected, status: 'That color is a starting clue.' };
+    const color = current.selectedColor;
+    if (color === null) return selected;
+    const history = [...current.history, snapshot(current)].slice(-40);
+    const notes = current.notes.map((cell) => [...cell]);
+    if (current.notesMode) {
+      if (current.board[index]) return { ...selected, status: 'Pencil marks go in empty squares.' };
+      notes[index] = notes[index].includes(color) ? notes[index].filter((n) => n !== color) : [...notes[index], color].sort();
+      return { ...selected, notes, history, status: 'Pencil mark updated.' };
+    }
+    const board = [...current.board];
+    board[index] = color; notes[index] = [];
+    const complete = board.every((value, i) => value === current.solution[i]);
+    return {
+      ...selected, board, notes, history, complete,
+      completedGames: current.completedGames + (complete ? 1 : 0),
+      pendingResults: complete && current.rankedId
+        ? [...current.pendingResults, { id: current.rankedId, board: [...board] }] : current.pendingResults,
+      status: complete ? 'Puzzle solved. Great work!' : isPlacementValid(board, index, color, current.size)
+        ? 'Color placed.' : 'That color repeats in this row, column, or block.',
+    };
+  }), []);
+  const onToggleNotes = useCallback(() => setGame((current) => !editable(current) ? current
+    : { ...current, notesMode: !current.notesMode }), []);
+  const onClear = useCallback(() => setGame((current) => {
+    const index = current.selectedCell;
+    if (!editable(current) || index === null || current.clues[index]) return current;
+    const board = [...current.board], notes = current.notes.map((cell) => [...cell]);
+    board[index] = 0; notes[index] = [];
+    return { ...current, board, notes, history: [...current.history, snapshot(current)].slice(-40), status: 'Square cleared.' };
+  }), []);
+  const onUndo = useCallback(() => setGame((current) => {
+    if (!editable(current) || !current.history.length) return current;
+    const history = [...current.history], last = history.pop()!;
+    return { ...current, board: last.board, notes: last.notes, history, status: 'Last move undone.' };
+  }), []);
+  const onPause = useCallback(() => setGame((current) => ({ ...current, paused: true })), []);
+  const onResume = useCallback(() => setGame((current) => !current.hasPuzzle ? current
+    : { ...current, screen: 'game', paused: false }), []);
+  const onNavigate = useCallback((screen: Screen) => {
+    setError('');
+    setGame((current) => ({ ...current, screen, paused: screen !== 'game' || current.paused }));
   }, []);
-
-  const onToggleNotes = useCallback(() => {
-    setGame((current) =>
-      current.paused || current.complete
-        ? current
-        : {
-            ...current,
-            notesMode: !current.notesMode,
-            status: current.notesMode ? 'Pencil marks off.' : 'Pencil marks on.',
-          },
-    );
-  }, []);
-
-  const onClear = useCallback(() => {
-    setGame((current) => {
-      const index = current.selectedCell;
-      if (
-        current.paused ||
-        current.complete ||
-        index === null ||
-        current.clues[index]
-      ) {
-        return current;
-      }
-      const board = [...current.board];
-      const notes = current.notes.map((cellNotes) => [...cellNotes]);
-      board[index] = 0;
-      notes[index] = [];
-      return {
-        ...current,
-        board,
-        notes,
-        history: [...current.history, snapshot(current)].slice(-MAX_UNDO),
-        status: 'Square cleared.',
-      };
-    });
-  }, []);
-
-  const onUndo = useCallback(() => {
-    setGame((current) => {
-      if (
-        current.paused ||
-        current.complete ||
-        current.history.length === 0
-      ) {
-        return current;
-      }
-      const history = [...current.history];
-      const previous = history.pop()!;
-      return {
-        ...current,
-        board: previous.board,
-        notes: previous.notes,
-        history,
-        status: 'Last move undone.',
-      };
-    });
-  }, []);
-
-  const onPause = useCallback(() => {
-    setGame((current) =>
-      current.complete ? current : { ...current, paused: true, status: 'Game paused.' },
-    );
-  }, []);
-
-  const onResume = useCallback(() => {
-    setGame((current) => ({ ...current, paused: false, status: 'Game resumed.' }));
-  }, []);
-
-  const onNewGame = useCallback((difficulty: Difficulty) => {
-    setGame((current) =>
-      buildGame(difficulty, current.theme, false, current.completedGames),
-    );
-  }, []);
-
-  const onDailyChallenge = useCallback(() => {
-    setGame((current) =>
-      buildGame('medium', current.theme, true, current.completedGames),
-    );
-  }, []);
-
-  const onThemeChange = useCallback((theme: GameTheme) => {
-    setGame((current) => {
-      const requiredWins = THEME_UNLOCKS[theme] ?? 0;
-      if (theme !== 'classic' && current.completedGames < requiredWins) {
-        return {
-          ...current,
-          status: `Solve ${requiredWins} puzzles to unlock the ${theme} palette.`,
-        };
-      }
-      return { ...current, theme };
-    });
-  }, []);
-
-  const onHint = useCallback(() => {
-    setGame((current) =>
-      ({
-        ...current,
-        status: 'Paid hints will be available after Google Play billing is connected.',
-      }),
-    );
-  }, []);
-
+  const onHome = useCallback(() => onNavigate('home'), [onNavigate]);
+  const onNewGame = useCallback((difficulty: Difficulty, size?: BoardSize) => {
+    if (!ready || busyRef.current) return;
+    setError('');
+    setGame((current) => ({ ...buildGame(difficulty, current.theme, null, current.completedGames, size ?? current.size),
+      pendingResults: current.pendingResults }));
+  }, [ready]);
+  const onDailyChallenge = useCallback((size?: BoardSize) => {
+    if (!ready || busyRef.current) return;
+    setError('');
+    setGame((current) => ({ ...buildGame('medium', current.theme, createDailySeed(), current.completedGames, size ?? current.size),
+      pendingResults: current.pendingResults }));
+  }, [ready]);
+  const onStartRanked = useCallback(async (difficulty: Difficulty, size: BoardSize) => {
+    if (!ready || busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError('');
+    try {
+      await ensurePlayer();
+      const issued = await startRankedGame({ size, difficulty });
+      const solution = solvePuzzle(issued.puzzle, size);
+      if (!solution) throw new Error('Server puzzle could not be loaded.');
+      setGame((current) => ({
+        ...buildGame(difficulty, current.theme, null, current.completedGames, size),
+        board: issued.puzzle, solution, clues: issued.puzzle.map(Boolean),
+        pendingResults: current.pendingResults,
+        rankedId: issued.id, status: 'Ranked play. Online time includes pauses and time away.',
+      }));
+    } catch (err) {
+      setError((err as { status?: number }).status === 429
+        ? 'Ranked play limit reached. Try practice or come back later.'
+        : 'Could not start ranked play. Your saved puzzle is unchanged. Check your connection and retry.');
+    } finally { busyRef.current = false; setBusy(false); }
+  }, [ready]);
+  const onThemeChange = useCallback((theme: GameTheme) => setGame((current) =>
+    theme !== 'classic' && current.completedGames < (THEME_UNLOCKS[theme] ?? Infinity) ? current
+      : { ...current, theme }), []);
+  const conflicts = useMemo(() => conflictIndexes(game.board, game.size), [game.board, game.size]);
+  const unlockedThemes = useMemo(() => (['classic', 'pastel', 'neon', 'dark'] as GameTheme[])
+    .filter((theme) => game.completedGames >= (THEME_UNLOCKS[theme] ?? 0)), [game.completedGames]);
   return {
-    ready,
-    board: game.board,
-    solution: game.solution,
-    clues: game.clues,
-    notes: game.notes,
-    difficulty: game.difficulty,
-    theme: game.theme,
-    daily: game.daily,
-    elapsed: formatTime(game.elapsedSeconds),
-    selectedCell: game.selectedCell,
-    selectedColor: game.selectedColor,
-    notesMode: game.notesMode,
-    paused: game.paused,
-    complete: game.complete,
-    completedGames: game.completedGames,
-    unlockedThemes,
-    palette: paletteByTheme[game.theme],
-    conflicts,
-    status: game.status,
-    canUndo: game.history.length > 0,
-    hintPrice: '$0.25',
-    hintAvailable: false,
-    difficultyOptions: difficulties,
-    onCellSelect,
-    onColorSelect,
-    onToggleNotes,
-    onClear,
-    onUndo,
-    onPause,
-    onResume,
-    onNewGame,
-    onDailyChallenge,
-    onThemeChange,
-    onHint,
+    ...game, ready, busy, error, saveError, hasSavedPuzzle: game.hasPuzzle && !game.complete,
+    ranked: !!game.rankedId, ...modeFor(game.size),
+    // modeFor also returns size, but game.size is the authoritative saved value.
+    palette: paletteByTheme[game.theme].slice(0, game.size), conflicts, unlockedThemes,
+    elapsed: formatTime(game.elapsedSeconds), canUndo: game.history.length > 0,
+    hintPrice: '$0.25', hintAvailable: false, difficultyOptions: difficulties,
+    onColorSelect, onCellSelect, onToggleNotes, onClear, onUndo, onPause, onResume, onHome,
+    onNavigate, onNewGame, onDailyChallenge, onStartRanked, onThemeChange,
+    onHint: () => undefined,
+    onRetryRanking: () => void submitResult(game),
   };
 }

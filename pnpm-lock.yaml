@@ -181,6 +181,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/sudoku':
+        specifier: workspace:*
+        version: link:../../lib/sudoku
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -425,6 +428,9 @@ importers:
       '@expo-google-fonts/fraunces':
         specifier: ^0.4.1
         version: 0.4.1
+      '@workspace/sudoku':
+        specifier: workspace:*
+        version: link:../../lib/sudoku
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -781,6 +787,8 @@ importers:
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
+
+  lib/sudoku: {}
 
   scripts:
     devDependencies:
