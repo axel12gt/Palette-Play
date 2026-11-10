@@ -96,13 +96,16 @@ test('ranked API validates owner, solution, expiry, server timing, duplicates an
     const old = await call('/ranked-games', 'POST', input, c.body.token);
     const recent = await call('/ranked-games', 'POST', input, d.body.token);
     const now = new Date(), cutoff = rankingCutoff(now);
-    assert.equal(cutoff.toISOString(), new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString());
+    assert.equal(cutoff.toISOString(), rankingPeriod('monthly', now).start.toISOString());
     for (const [date, expected] of [
-      ['2028-02-29T23:59:59.999Z', '2028-02-01T00:00:00.000Z'],
-      ['2028-03-01T00:00:00.000Z', '2028-03-01T00:00:00.000Z'],
-      ['2027-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z'],
-      ['2026-12-31T23:59:59.999Z', '2026-12-01T00:00:00.000Z'],
-      ['2026-11-01T00:30:00+02:00', '2026-10-01T00:00:00.000Z'],
+      ['2028-02-29T23:59:59.999Z', '2028-02-01T05:00:00.000Z'],
+      ['2028-03-01T00:00:00.000Z', '2028-02-01T05:00:00.000Z'],
+      ['2027-01-01T00:00:00.000Z', '2026-12-01T05:00:00.000Z'],
+      ['2026-12-31T23:59:59.999Z', '2026-12-01T05:00:00.000Z'],
+      ['2026-11-01T00:30:00+02:00', '2026-10-01T04:00:00.000Z'],
+      ['2026-11-01T03:59:59.999Z', '2026-10-01T04:00:00.000Z'],
+      ['2026-11-01T04:00:00.000Z', '2026-11-01T04:00:00.000Z'],
+      ['2027-01-01T05:00:00.000Z', '2027-01-01T05:00:00.000Z'],
     ]) assert.equal(rankingCutoff(new Date(date)).toISOString(), expected);
     await pool.query('UPDATE sudoku_players SET created_at=$1 WHERE id=ANY($2::uuid[])',
       [new Date(cutoff.getTime() - 86400000), [c.body.id, d.body.id]]);

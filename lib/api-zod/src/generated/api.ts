@@ -68,7 +68,7 @@ export const CompleteRankedGameResponse = zod.object({
 
 
 /**
- * @summary Current UTC period rankings for matching modes
+ * @summary Current Eastern-time period rankings for matching modes
  */
 export const GetLeaderboardQueryParams = zod.object({
   "size": zod.union([zod.literal(4),zod.literal(6),zod.literal(9)]),

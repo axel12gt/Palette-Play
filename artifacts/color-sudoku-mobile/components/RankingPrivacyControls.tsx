@@ -80,8 +80,8 @@ export default function RankingPrivacyControls({
         difficulty, start and finish times, and completion results. Your random name and scores appear on public leaderboards.
       </Text>
       <Text style={textStyle}>
-        Online results are kept for the calendar month they were completed in. They stop appearing at midnight UTC
-        on the first day of the next month, even if earned on the last day. Older records are removed during cleanup,
+        Online results are kept for the Eastern-time calendar month they were completed in. They stop appearing at midnight Eastern
+        on the first day of the next month (EST in winter, EDT in summer), even if earned on the last day. Older records are removed during cleanup,
         which runs hourly and on the first online request after a month changes.
         Unfinished ranked puzzles from the previous month expire too. Older profiles with no current-month puzzles are removed.
         Weekly and fastest-time rankings also lose previous-month results at this reset.

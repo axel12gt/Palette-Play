@@ -1,3 +1,3 @@
 - [Color Sudoku product constraints](color-sudoku-product.md) — keep the game visual, non-numeric, and approachable for children.
 - [Ranking trust and timing](ranking-policy.md) — ranked puzzles use server time including pauses; offline practice remains separate.
-- [Ranking privacy policy](ranking-privacy.md) — retain results for their UTC calendar month; online deletion preserves offline puzzles and earned themes.
+- [Ranking privacy policy](ranking-privacy.md) — Eastern calendar-month retention and EST/EDT resets; online deletion preserves offline puzzles and themes.

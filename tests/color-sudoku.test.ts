@@ -96,12 +96,33 @@ test('invalid grids, wrong completions and conflicting rows cannot pass validati
   assert.equal(matchesSolution(puzzle.puzzle, puzzle.puzzle, puzzle.solution), false);
   assert.equal(matchesSolution([], puzzle.puzzle, puzzle.solution), false);
 });
-test('UTC weeks start Monday, months roll over, boundaries and leap day are correct', () => {
+test('Eastern weeks start Monday, months roll over, boundaries and leap day are correct', () => {
   const week = rankingPeriod('weekly', new Date('2026-11-08T23:59:59.999Z'));
-  assert.equal(week.start.toISOString(), '2026-11-02T00:00:00.000Z');
-  assert.equal(week.end.toISOString(), '2026-11-09T00:00:00.000Z');
+  assert.equal(week.start.toISOString(), '2026-11-02T05:00:00.000Z');
+  assert.equal(week.end.toISOString(), '2026-11-09T05:00:00.000Z');
   assert.equal(rankingPeriod('speed', week.end).start.toISOString(), week.end.toISOString());
   const year = rankingPeriod('monthly', new Date('2026-12-31T23:59:59.999Z'));
-  assert.equal(year.end.toISOString(), '2027-01-01T00:00:00.000Z');
-  assert.equal(rankingPeriod('monthly', new Date('2028-02-29')).end.toISOString(), '2028-03-01T00:00:00.000Z');
+  assert.equal(year.end.toISOString(), '2027-01-01T05:00:00.000Z');
+  assert.equal(rankingPeriod('monthly', new Date('2028-02-29')).end.toISOString(), '2028-03-01T05:00:00.000Z');
+  // UTC midnight does not prematurely advance the Eastern month or week.
+  assert.equal(rankingPeriod('monthly', new Date('2027-01-01T04:59:59.999Z')).start.toISOString(), '2026-12-01T05:00:00.000Z');
+  assert.equal(rankingPeriod('monthly', new Date('2027-01-01T05:00:00.000Z')).start.toISOString(), '2027-01-01T05:00:00.000Z');
+  assert.equal(rankingPeriod('weekly', new Date('2026-07-06T03:59:59.999Z')).end.toISOString(), '2026-07-06T04:00:00.000Z');
+  assert.equal(rankingPeriod('weekly', new Date('2026-07-06T04:00:00.000Z')).start.toISOString(), '2026-07-06T04:00:00.000Z');
+});
+test('Eastern reset boundaries follow daylight saving in both directions', () => {
+  const spring = rankingPeriod('weekly', new Date('2026-03-08T12:00:00Z'));
+  assert.equal(spring.start.toISOString(), '2026-03-02T05:00:00.000Z');
+  assert.equal(spring.end.toISOString(), '2026-03-09T04:00:00.000Z');
+  assert.equal(spring.end.getTime() - spring.start.getTime(), 167 * 3600000);
+  const fall = rankingPeriod('speed', new Date('2026-11-01T12:00:00Z'));
+  assert.equal(fall.start.toISOString(), '2026-10-26T04:00:00.000Z');
+  assert.equal(fall.end.toISOString(), '2026-11-02T05:00:00.000Z');
+  assert.equal(fall.end.getTime() - fall.start.getTime(), 169 * 3600000);
+  const march = rankingPeriod('monthly', new Date('2026-03-15T12:00:00Z'));
+  assert.equal(march.start.toISOString(), '2026-03-01T05:00:00.000Z');
+  assert.equal(march.end.toISOString(), '2026-04-01T04:00:00.000Z');
+  const november = rankingPeriod('monthly', new Date('2026-11-15T12:00:00Z'));
+  assert.equal(november.start.toISOString(), '2026-11-01T04:00:00.000Z');
+  assert.equal(november.end.toISOString(), '2026-12-01T05:00:00.000Z');
 });

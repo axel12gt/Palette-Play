@@ -1,6 +1,7 @@
 # Ranking privacy and retention
 
-The owner selected **the current UTC calendar month** for online ranking data retention.
+The owner selected **the current Eastern calendar month** for online ranking data retention.
+All resets use `America/New_York`, switching automatically between EST and EDT.
 
 ## Data and visibility
 
@@ -13,8 +14,8 @@ The game does not ask for names, email addresses, dates of birth or locations.
 
 ## Retention
 
-Completed records are retained for the UTC calendar month of completion, not a rolling number of days.
-They expire at 00:00 UTC on the first of the next month, including results earned on the final day.
+Completed records are retained for the Eastern calendar month of completion, not a rolling number of days.
+They expire at midnight Eastern on the first of the next month, including results earned on the final day.
 Unfinished games expire at the same boundary based on issuance month, or after seven days, whichever comes first.
 Leaderboard queries exclude previous-month results even between cleanup runs.
 Cleanup runs on server startup, hourly while running, and before ranking requests if due;
@@ -23,7 +24,8 @@ It deletes expired games and then profiles created before the current month with
 If the server is stopped, overdue records are removed on its next startup/request.
 Cleanup failure is logged and ranking requests fail rather than claiming cleanup succeeded.
 
-Monthly rankings are calendar-month UTC rankings.
+Monthly rankings reset on the first at midnight Eastern; weekly and speed rankings reset Monday at midnight Eastern.
+Boundaries are converted independently using New York's time-zone rules, so daylight-saving changes are handled correctly.
 Weekly completion and speed rankings are intersected with the current month: they lose previous-month
 results at month rollover even if the week has not ended. This is disclosed in the app.
 

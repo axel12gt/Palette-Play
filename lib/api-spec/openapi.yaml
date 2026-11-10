@@ -79,7 +79,7 @@ paths:
   /leaderboards:
     get:
       operationId: getLeaderboard
-      summary: Current UTC period rankings for matching modes
+      summary: Current Eastern-time period rankings for matching modes
       parameters:
         - { name: size, in: query, required: true, schema: { type: integer, enum: [4, 6, 9] } }
         - { name: difficulty, in: query, required: true, schema: { $ref: "#/components/schemas/Difficulty" } }

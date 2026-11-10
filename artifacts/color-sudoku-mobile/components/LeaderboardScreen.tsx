@@ -30,13 +30,13 @@ function formatMs(ms: number) {
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
 }
 
-function formatUtc(iso: string) {
+function formatEastern(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${String(d.getUTCHours()).padStart(2, '0')}:${String(
-    d.getUTCMinutes(),
-  ).padStart(2, '0')} UTC`;
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  }).format(d);
 }
 
 function EntryRow({ scene, entry, kind, own }: { scene: Scene; entry: LeaderboardEntry; kind: Kind; own: boolean }) {
@@ -159,7 +159,8 @@ export default function LeaderboardScreen({ game }: { game: Game }) {
           </View>
           {board ? (
             <Text style={{ color: scene.muted, fontFamily: FONT.regular, fontSize: 11 }} testID="text-period">
-              {formatUtc(board.periodStart)} to {formatUtc(board.periodEnd)}. Resets at period end.
+              {formatEastern(board.periodStart)} to {formatEastern(board.periodEnd)}.
+              {' '}Resets at midnight Eastern: Mondays weekly, the first monthly.
             </Text>
           ) : null}
 
@@ -213,7 +214,7 @@ export default function LeaderboardScreen({ game }: { game: Game }) {
           text="Only ranked puzzles issued online by our server count. Times use the server clock from issue to completion, so pauses and time in the background are included."
         />
         <Notice scene={scene} tone="info"
-          text="Results are kept for their calendar month and cleared at midnight UTC on the first of the next month. Weekly and fastest rankings also lose previous-month results then. Your random name and scores are public."
+          text="Results are kept for their calendar month and cleared at midnight Eastern on the first of the next month (EST in winter, EDT in summer). Weekly and fastest rankings also lose previous-month results then. Your random name and scores are public."
           action={{ label: 'Privacy & delete data', onPress: () => game.onNavigate('addons'), testID: 'button-ranking-privacy' }}
         />
       </ScrollView>

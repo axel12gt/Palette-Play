@@ -405,7 +405,7 @@ export const getGetLeaderboardUrl = (params: GetLeaderboardParams,) => {
 }
 
 /**
- * @summary Current UTC period rankings for matching modes
+ * @summary Current Eastern-time period rankings for matching modes
  */
 export const getLeaderboard = async (params: GetLeaderboardParams, options?: Parameters<typeof customFetch>[1]): Promise<Leaderboard> => {
 
@@ -476,7 +476,7 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Current UTC period rankings for matching modes
+ * @summary Current Eastern-time period rankings for matching modes
  */
 
 export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<RequestErrorResponse>>(

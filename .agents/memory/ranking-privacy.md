@@ -3,8 +3,9 @@ name: Ranking privacy policy
 description: Owner-chosen retention duration and preservation rules for ranking deletion
 ---
 
-Online ranking data retention follows **UTC calendar months**, not a rolling number of days.
+Online ranking data retention follows **Eastern calendar months**, not a rolling number of days.
+Weekly and monthly resets use midnight in **America/New_York**, switching between EST and EDT.
 
-**Why:** The user chose “Calendar month” after being told that results expire at midnight UTC on the first of the next month and weekly rankings also lose prior-month results.
+**Why:** The user chose calendar-month retention, then requested Eastern resets and explicitly selected Eastern with daylight saving.
 
-**How to apply:** Retain completed results for their completion month; expire prior-month unfinished puzzles and results at rollover. Deleting online rankings must preserve local puzzles and earned themes.
+**How to apply:** Retain completed results for their Eastern completion month; expire prior-month unfinished puzzles and results at rollover. Weeks start Monday at midnight Eastern. Deleting online rankings must preserve local puzzles and earned themes.
