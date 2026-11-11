@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "pSOizsCs3z92y8hqPJ7pX"
+uri = "file://docs/palette-play-android-handoff.html"
+type = "html"
+title = "Palette Play — Android Developer Handoff"
+description = "Printable handoff with your AdMob IDs, banner and interstitial requirements, purchase setup, testing checklist, and Google Play release blockers."
+logical_id = "d986bf2c-cb39-4e37-ab91-366bd9444d9f"
+content_hash = "sha256:0dba187e6969f2777579e5e22bef695c1cb6d17635d7323d8277d86389b91cd2"
+size = 15449
+mtime_ms = 1794356713392
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:f992def1-0039-44c2-906d-acf3f99e0cf2/d986bf2c-cb39-4e37-ab91-366bd9444d9f/46fa211a-bf5d-467f-9960-cf094e384137"
+storage_version_token = "1794356727662251"
+content_type = "text/html"

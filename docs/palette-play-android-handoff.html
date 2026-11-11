@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Palette Play — Android Developer Handoff</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f4f5f7;color:#202b3d;font:16px/1.6 system-ui,sans-serif}
+    main{max-width:920px;margin:32px auto;padding:48px;background:white;border:1px solid #dce1e8;border-radius:12px}
+    h1{font-size:32px;line-height:1.2;margin:8px 0 16px}h2{font-size:22px;margin-top:34px;border-bottom:1px solid #dce1e8;padding-bottom:8px}
+    h3{font-size:17px;margin-bottom:4px}.eyebrow{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:#51648a}
+    .notice{background:#fff6df;border-left:4px solid #bd8300;padding:16px 20px;margin:24px 0}
+    .muted{color:#586578}code{font:13px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}
+    table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:12px;border:1px solid #dce1e8;vertical-align:top;text-align:left}th{background:#f1f4f8}
+    li{margin:7px 0}a{color:#245bb2}footer{margin-top:36px;font-size:13px;color:#586578}
+    @media(max-width:640px){main{margin:0;padding:22px;border:0;border-radius:0}h1{font-size:27px}table{font-size:12px}th,td{padding:7px}}
+    @media print{body{background:white;font-size:11pt}main{margin:0;padding:0;border:0;max-width:none}h2,h3{break-after:avoid}tr,.notice{break-inside:avoid}a{color:inherit} @page{margin:18mm}}
+  </style>
+</head>
+<body><main>
+  <div class="eyebrow">Android developer handoff · Prepared November 10, 2026</div>
+  <h1>Palette Play</h1>
+  <p>Integrate Android advertising, complete store purchase setup, and prepare an internal Google Play test release while preserving the existing playable game.</p>
+  <div class="notice"><strong>Status: not ready for a production release.</strong> The game has advertising placeholders only. Neither AdMob unit is connected. Paid hints and ad removal are not functional purchases. No Android release build or Play Console approval has been verified. Do not enable live ads or publish production without the owner's approval.</div>
+
+  <h2>1. Product and project identity</h2>
+  <table>
+    <tr><th>Item</th><th>Value / instruction</th></tr>
+    <tr><td>Public game name</td><td><strong>Palette Play</strong>. The mobile home title and web title have been renamed.</td></tr>
+    <tr><td>Android package</td><td><code>com.colorsudoku.mobile</code> — preserve this identifier; do not rename it to match the new title.</td></tr>
+    <tr><td>Native display name</td><td><code>app.json</code> still says <strong>Color Sudoku</strong>. Update the display name to Palette Play before release, without changing the package, slug, save keys, or URI scheme.</td></tr>
+    <tr><td>Mobile project</td><td><code>artifacts/color-sudoku-mobile</code>, within a pnpm monorepo. Transfer the full repository, not just this folder; it consumes shared workspace packages.</td></tr>
+    <tr><td>Backend</td><td><code>artifacts/api-server</code>. Ranked play needs an accessible production API and database, not a temporary development address.</td></tr>
+    <tr><td>Current framework</td><td>Expo ~58.0.16 / React Native 0.88.0 as declared in the project. Verify dependency alignment and native SDK support before selecting an ads bridge.</td></tr>
+    <tr><td>Android version metadata</td><td>App version 1.0.0; versionCode 1. Confirm the next permitted versionCode in Play Console before uploading.</td></tr>
+    <tr><td>Test phone</td><td>Google Pixel 9 Pro; portrait layout, plus smaller and larger phone sizes. A 412 × 915 logical-pixel viewport is a useful layout check, not a substitute for device testing.</td></tr>
+  </table>
+  <p>The owner reports having Google Play developer and AdMob accounts and having added the game in AdMob. Account verification, store listing completion, app-ads.txt verification, and store approval have not been independently confirmed.</p>
+
+  <h2>2. AdMob identifiers supplied by the owner</h2>
+  <table>
+    <tr><th>Purpose</th><th>Identifier</th></tr>
+    <tr><td>Android AdMob App ID</td><td><code>ca-app-pub-5670672374180772~6934334073</code></td></tr>
+    <tr><td>Top banner — confirmed Banner type<br><span class="muted">AdMob label: “Puzzle complete”</span></td><td><code>ca-app-pub-5670672374180772/6684932967</code></td></tr>
+    <tr><td>Puzzle-completion interstitial<br><span class="muted">AdMob label: “complete game 2”</span></td><td><code>ca-app-pub-5670672374180772/4635473792</code></td></tr>
+  </table>
+  <p>These are public app/ad identifiers, not login credentials. Their format and owner-provided purpose are known; their account status and ability to serve ads have not been verified.</p>
+
+  <h2>3. Required native advertising integration</h2>
+  <ol>
+    <li><strong>Use a custom native Android build.</strong> The existing browser and standard Expo Go previews cannot run Google Mobile Ads. Preserve their ability to load without importing an unavailable native module. Do not present preview placeholders as functioning ads.</li>
+    <li>Select and verify a maintained React Native / Expo-compatible Google Mobile Ads bridge in an external Android build environment. Follow its supported version and configuration instructions. Do not paste Kotlin/Gradle examples into TypeScript or manually edit generated files that will be overwritten.</li>
+    <li>Configure the supplied <strong>App ID</strong> in the native Android manifest through the supported build configuration. Do not confuse it with an ad unit ID. Verify the final merged manifest.</li>
+    <li>Set privacy and child-directed request settings, and resolve any required consent, <strong>before SDK initialization or ad requests</strong>. Initialize once. See the privacy checklist below.</li>
+    <li><strong>Top banner:</strong> replace the reserved banner with a responsive adaptive banner. Compute width from available layout space; respect safe areas, orientation/insets, and Google placement rules. Keep it clearly separate from the puzzle and controls to prevent accidental taps. Account for the resulting height so the board remains usable.</li>
+    <li><strong>Completion interstitial:</strong> preload during play, then show at a natural break after a valid win, before starting another puzzle. Save the completed game and submit/queue rankings independently of ad availability. Show at most once for a completion; never retrigger on resume, screen re-render, or navigation back.</li>
+    <li>Skip an unavailable or failed ad without blocking the player. Restore navigation on dismissal and failure. Release ad resources and listeners appropriately. Do not load/show ads for a verified ad-free purchaser.</li>
+    <li><strong>Development uses Google's official test ad units or registered test devices.</strong> Keep live serving explicitly gated until the owner authorizes it and policy checks pass. Never click live ads during testing.</li>
+  </ol>
+  <h3>Integration locations to inspect</h3>
+  <ul>
+    <li><code>components/Scene.tsx</code>: shared <code>AdBanner</code> placeholder, used by home, game, add-ons, and rankings screens.</li>
+    <li><code>components/ColorSudokuScreen.tsx</code> and <code>hooks/useColorSudokuGame.ts</code>: puzzle and completion lifecycle; identify the authoritative completed-game transition before attaching an interstitial.</li>
+    <li><code>components/AddonsScreen.tsx</code>: purchases are currently labelled planned/unavailable; ad copy still refers to account setup and needs updating once integration exists.</li>
+    <li><code>app/_layout.tsx</code> and <code>app.json</code>: shared initialization and native configuration. Keep the existing font-loading, API setup, safe-area, and routing behavior intact.</li>
+  </ul>
+
+  <h2>4. Children, privacy, and ad removal</h2>
+  <p>The owner explicitly intends the game to be approachable for children. Do not assume it is adults-only merely to simplify advertising.</p>
+  <ul>
+    <li>Confirm and accurately declare the target audience in Play Console. For child users or users of unknown age as applicable, use eligible Families self-certified ads SDK versions and compliant ad content.</li>
+    <li>Configure child-directed treatment, under-age-of-consent settings where applicable, and appropriate maximum content rating. Non-personalized ads alone do not establish compliance. If the audience is mixed, evaluate Google's neutral age-screen requirements.</li>
+    <li>Implement any required regional consent flow, including withdrawal/privacy options. Review whether and when SDK initialization itself collects data; do not collect first and ask later.</li>
+    <li>Audit merged Android permissions and actual SDK data collection. Remove unused sensitive capabilities. Complete Data safety and Ads declarations from the finished build's behavior.</li>
+    <li>Publish an accurate privacy policy with the actual publisher and required contact information. Do not invent business details or claim legal compliance without review.</li>
+    <li><strong>$5 one-time Remove All Ads:</strong> implement as a non-consumable Google Play product managed through RevenueCat, with a verified entitlement and restore support. Suppress both banner and completion ads, including after relaunch and restoration. Display the price returned by the store. Stripe is not the Android digital-goods payment route.</li>
+    <li><strong>$0.25 per hint:</strong> planned repeatable consumable purchase, separate from ad removal. Confirm supported store pricing and implement verified fulfillment before enabling. No payment SDK or real purchase flow is currently implemented in the mobile app.</li>
+  </ul>
+
+  <h2>5. Preserve the existing game and ranking rules</h2>
+  <ul>
+    <li>No numbers on the puzzle board: use colors. Board modes: 4 × 4 with 2 × 2 blocks, 6 × 6 with 2 × 3 blocks, and 9 × 9 with 3 × 3 blocks.</li>
+    <li>Five difficulties: very easy, easy, medium, hard, expert. Keep unique-solution generation, notes, tap/drag placement, pause/home navigation, saves/resume, and earned themes working.</li>
+    <li>Ranked timing uses server time, including pauses. Offline practice stays separate.</li>
+    <li>Weekly completion and speed boards reset Monday midnight in <strong>America/New_York</strong>; monthly rankings and retention reset at midnight on the first. Follow EST/EDT automatically.</li>
+    <li>Online results are retained for the Eastern calendar month of completion, not a rolling 30/31 days. Monthly expiry can remove results from an unfinished ranking week.</li>
+    <li>Deleting online ranking data must preserve offline puzzles, notes, timer, undo, themes, and local progress. Preserve failed-deletion retries and explicit re-enable behavior.</li>
+    <li>Review public-ranking anti-automation and protected native storage for the device credential before release; do not assume those proposed protections are already implemented.</li>
+  </ul>
+
+  <h2>6. Verification and Google Play release checklist</h2>
+  <ul>
+    <li>Run existing checks from the repository root: <code>pnpm run typecheck</code>; <code>pnpm --filter @workspace/scripts exec tsx --test ../tests/color-sudoku.test.ts</code>; <code>pnpm --filter @workspace/scripts exec tsx --test ../tests/rankings-api.test.ts</code>.</li>
+    <li>In a native test build, verify banner resizing, safe areas, all board sizes, and no accidental overlap. Check slow/offline networks, ad load failure, background/resume, dismissal, duplicate win events, and saved completion persistence.</li>
+    <li>Test ad-free purchase, pending/cancelled/failed purchase, restore, relaunch, and suppression of every ad placement using Play test accounts and a correctly configured RevenueCat entitlement.</li>
+    <li>Verify the final Android target API against current Play policy. Google's published requirement at preparation time is Android 16 / API 36 or higher for new phone apps and updates.</li>
+    <li>Verify native library compatibility, including applicable 16 KB page-size requirements, 64-bit support, release configuration, and absence of debug credentials or test-only behavior in the approved live build.</li>
+    <li>Configure a stable production API URL for the mobile build through the project's public domain configuration; confirm production database setup and connectivity. Do not embed local addresses or treat a development URL as production.</li>
+    <li>Complete listing assets, privacy policy, audience, content rating, Ads/Data safety declarations, and any account verification or testing requirements shown in the owner's Play Console.</li>
+    <li>Configure signing and Play App Signing securely. The owner must retain control of signing credentials and developer accounts. Share secrets only through secure credential tooling, not this document or chat.</li>
+    <li>Generate a signed Android App Bundle (<code>.aab</code>) and upload to <strong>internal testing first</strong>. Run Play checks and fix reported issues. Internal testing is not production publication or proof of AdMob approval.</li>
+    <li>For live AdMob serving, link the public supported-store listing, complete applicable app-ads.txt verification, and pass the app-readiness review. Creating an unpublished AdMob entry does not complete this process.</li>
+    <li>Obtain explicit owner approval before enabling live serving or publishing to production. Do not promise store approval or advertising revenue.</li>
+  </ul>
+
+  <h2>7. Delivery expected from the Android developer</h2>
+  <p>A source change set with a documented native build process, a signed internal-test bundle, native-device test evidence, a verified SDK/permission inventory, working ad-free restoration if purchases are included, and a concise list of any unresolved store or privacy blockers. Keep the existing web and Expo Go preview usable without pretending they can display native AdMob ads.</p>
+  <h3>Reference guides</h3>
+  <ul>
+    <li><a href="https://developers.google.com/admob/android/quick-start">Google Mobile Ads Android quick start</a></li>
+    <li><a href="https://developers.google.com/admob/android/banner">Banner implementation</a> · <a href="https://developers.google.com/admob/android/interstitial">Interstitial implementation</a> · <a href="https://developers.google.com/admob/android/test-ads">Test ads</a></li>
+    <li><a href="https://support.google.com/googleplay/android-developer/answer/9893335?hl=en">Google Play Families policies</a> · <a href="https://developers.google.com/admob/android/privacy">Privacy and consent</a></li>
+    <li><a href="https://developer.android.com/google/play/requirements/target-sdk">Target API requirements</a> · <a href="https://developer.android.com/guide/practices/page-sizes">Memory page-size compatibility</a></li>
+    <li><a href="https://support.google.com/admob/answer/9989980?hl=en">AdMob setup and readiness</a> · <a href="https://docs.replit.com/features/artifact-types/building-mobile-apps">Replit mobile app support</a></li>
+  </ul>
+  <footer>This handoff describes inspected project configuration and owner-provided requirements. It is not an SDK certification, legal opinion, completed integration, or store-approval guarantee. Re-check current platform policies and package versions during implementation. Open this document in a browser and use Print → Save as PDF if a PDF copy is needed.</footer>
+</main></body></html>

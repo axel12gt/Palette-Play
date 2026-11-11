@@ -9,8 +9,8 @@ Color Sudoku is a tactile, non-numeric Sudoku for children and others who prefer
 
 **How to apply:** Keep puzzle values represented as colors rather than visible digits, and preserve the standard Sudoku rule structure.
 
-Real purchases and ad delivery must wait for the user's account setup; continue building playable features without enabling charges.
+Do not treat account creation as permission to enable live ads, charge purchases, or publish the game. The user has since reported creating Google Play developer and AdMob accounts and supplied banner and interstitial IDs for integration.
 
-**Why:** The user does not yet have a Google Play developer account and explicitly asked to build what can be built and wait for that.
+**Why:** The user previously deferred monetization while accounts were missing, then requested ad integration after creating them. Account readiness does not establish a working or approved native integration.
 
-**How to apply:** Show planned pricing ($0.25 per hint, $5 one-time to remove all ads) as unavailable until store products and required accounts are ready. Never treat a placeholder or test flow as a real purchase.
+**How to apply:** Keep planned pricing ($0.25 per hint, $5 one-time to remove all ads) unavailable until store products and verified purchase flows are ready. Use test ads during integration. Never treat a placeholder or test flow as a real purchase or live ad.
