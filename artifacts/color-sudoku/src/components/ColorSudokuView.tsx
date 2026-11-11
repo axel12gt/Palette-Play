@@ -211,12 +211,12 @@ export function ColorSudokuView({
     <main className="sudoku-shell" data-theme={theme}>
       <div className="game-wrap">
         <header className="game-header">
-          <div className="brand-lockup" aria-label="Color Sudoku">
+          <div className="brand-lockup" aria-label="Palette Play">
             <span className="brand-mark" aria-hidden="true">
               {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
             </span>
             <div>
-              <h1 className="brand-title">Color Sudoku</h1>
+              <h1 className="brand-title">Palette Play</h1>
               <p className="brand-caption">A little logic, a lot of color</p>
             </div>
           </div>
@@ -257,7 +257,7 @@ export function ColorSudokuView({
 
             {boardReady ? (
               <div className="board-card">
-                <div className="board-grid" role="grid" aria-label="Color Sudoku board">
+                <div className="board-grid" role="grid" aria-label="Palette Play board">
                   {cells.map((cell) => {
                     const valueColor = cell.value === null ? undefined : colorForId(cell.value);
                     const notesText = cell.notes

@@ -55,7 +55,7 @@ export default function HomeScreen({ game }: { game: Game }) {
               <View key={c.id} style={[styles.markDot, { backgroundColor: c.hex }]} />
             ))}
           </View>
-          <Text style={[styles.title, { color: scene.text, fontFamily: FONT.display }]}>Color Sudoku</Text>
+          <Text style={[styles.title, { color: scene.text, fontFamily: FONT.display }]}>Palette Play</Text>
           <Text style={[styles.tagline, { color: scene.muted, fontFamily: FONT.regular }]}>
             No numbers. Just one of each color in every row, column and block.
           </Text>
