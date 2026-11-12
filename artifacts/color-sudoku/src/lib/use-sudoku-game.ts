@@ -132,10 +132,10 @@ function newGame(
   };
 }
 
-function readSavedGame(): SavedGame | null {
+function readSavedGame(saveKey = SAVE_KEY): SavedGame | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
+    const raw = window.localStorage.getItem(saveKey);
     if (!raw) return null;
     const saved = JSON.parse(raw) as SavedGame;
     if (
@@ -212,14 +212,19 @@ function makeUndoFrame(game: SavedGame): UndoFrame {
   };
 }
 
-export function useSudokuGame() {
+export function useSudokuGame({ offlineEdition = false } = {}) {
+  const saveKey = offlineEdition ? 'palette-play.offline.save.v1' : SAVE_KEY;
+  const themeKey = offlineEdition ? 'palette-play.offline.theme.v1' : THEME_KEY;
+  const dailyKey = offlineEdition ? 'palette-play.offline.daily.v1' : DAILY_COMPLETIONS_KEY;
+  const [storageWarning, setStorageWarning] = useState('');
   const [game, setGame] = useState<SavedGame>(() => {
-    const saved = readSavedGame();
+    const saved = readSavedGame(saveKey);
     if (saved) return saved;
 
     let theme: Theme = 'classic';
     if (typeof window !== 'undefined') {
-      const storedTheme = window.localStorage.getItem(THEME_KEY);
+      let storedTheme: string | null = null;
+      try { storedTheme = window.localStorage.getItem(themeKey); } catch { /* Save effect displays a warning. */ }
       if (
         storedTheme === 'classic' ||
         storedTheme === 'pastel' ||
@@ -234,12 +239,12 @@ export function useSudokuGame() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify(game));
-      window.localStorage.setItem(THEME_KEY, game.theme);
+      window.localStorage.setItem(saveKey, JSON.stringify(game));
+      window.localStorage.setItem(themeKey, game.theme);
     } catch {
-      // The current session remains playable if storage is unavailable.
+      setStorageWarning('Browser storage is unavailable. This game works, but progress will not be saved when you close it.');
     }
-  }, [game]);
+  }, [game, saveKey, themeKey]);
 
   useEffect(() => {
     if (game.paused || game.complete) return;
@@ -442,6 +447,22 @@ export function useSudokuGame() {
   }, []);
 
   const onHint = useCallback(() => {
+    if (offlineEdition) {
+      setGame((current) => {
+        if (current.paused || current.complete) return current;
+        const selected = current.selectedCell;
+        const index = selected !== null && !current.clues[selected] && current.board[selected] !== current.solution[selected]
+          ? selected : current.board.findIndex((value, i) => !current.clues[i] && value !== current.solution[i]);
+        if (index < 0) return current;
+        const board = [...current.board];
+        board[index] = current.solution[index];
+        const notes = current.notes.map((dots, i) => i === index ? [] : [...dots]);
+        return { ...current, board, notes, selectedCell: index,
+          history: [...current.history, makeUndoFrame(current)].slice(-MAX_UNDO),
+          statusMessage: 'Free hint: one correct color revealed.', updatedAt: Date.now() };
+      });
+      return;
+    }
     setGame((current) =>
       current.paused || current.complete
         ? current
@@ -452,7 +473,7 @@ export function useSudokuGame() {
             updatedAt: Date.now(),
           },
     );
-  }, []);
+  }, [offlineEdition]);
 
   const onPause = useCallback(() => {
     setGame((current) =>
@@ -509,21 +530,22 @@ export function useSudokuGame() {
     if (!game.complete || !game.dailySeed) return;
     try {
       const completed = JSON.parse(
-        window.localStorage.getItem(DAILY_COMPLETIONS_KEY) ?? '[]',
+        window.localStorage.getItem(dailyKey) ?? '[]',
       ) as string[];
       if (!completed.includes(game.dailySeed)) {
         window.localStorage.setItem(
-          DAILY_COMPLETIONS_KEY,
+          dailyKey,
           JSON.stringify([...completed, game.dailySeed]),
         );
       }
     } catch {
-      window.localStorage.setItem(
-        DAILY_COMPLETIONS_KEY,
-        JSON.stringify([game.dailySeed]),
-      );
+      try {
+        window.localStorage.setItem(dailyKey, JSON.stringify([game.dailySeed]));
+      } catch {
+        setStorageWarning('Browser storage is unavailable. Daily progress cannot be saved.');
+      }
     }
-  }, [game.complete, game.dailySeed]);
+  }, [game.complete, game.dailySeed, dailyKey]);
 
   useEffect(() => {
     if (game.complete || game.paused) return;
@@ -553,9 +575,9 @@ export function useSudokuGame() {
     paused: game.paused,
     complete: game.complete,
     selectedColor: game.selectedColor,
-    statusMessage: game.statusMessage,
-    hintPrice: '$0.25',
-    hintAvailable: false,
+    statusMessage: storageWarning || game.statusMessage,
+    hintPrice: offlineEdition ? 'Free' : '$0.25',
+    hintAvailable: offlineEdition,
     unlockedThemes,
     completedGames: game.completedGames,
     onCellSelect,

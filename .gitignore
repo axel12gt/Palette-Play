@@ -53,3 +53,5 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+/generated-artifacts/
+/artifacts/color-sudoku/public/palette-play-offline.html

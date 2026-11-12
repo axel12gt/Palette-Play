@@ -41,6 +41,7 @@ export type CellView = {
 };
 
 export type ColorSudokuViewProps = {
+  offlineEdition?: boolean;
   cells: CellView[];
   palette: PaletteItem[];
   difficulty: Difficulty;
@@ -101,6 +102,7 @@ function getStatusKind(message: string) {
 }
 
 export function ColorSudokuView({
+  offlineEdition = false,
   cells,
   palette,
   difficulty,
@@ -319,10 +321,10 @@ export function ColorSudokuView({
                       <span className="overlay-icon"><Trophy size={25} aria-hidden="true" /></span>
                       <h2 id="complete-heading">Beautifully solved.</h2>
                       <p className="success-time">Puzzle time: {elapsed || '00:00'}</p>
-                      <aside className="reserved-ad" aria-label="Reserved advertisement placement">
+                      {!offlineEdition && <aside className="reserved-ad" aria-label="Reserved advertisement placement">
                         <strong>Reserved ad placement</strong>
                         <span>This space is intentionally empty. No advertisement is shown.</span>
-                      </aside>
+                      </aside>}
                       <button
                         className="primary-button"
                         type="button"
@@ -422,18 +424,18 @@ export function ColorSudokuView({
                   disabled={!hintAvailable || !hintPrice}
                   data-testid="button-hint"
                   aria-label={
-                    hintAvailable && hintPrice
+                    offlineEdition ? 'Reveal a correct color for free' : hintAvailable && hintPrice
                       ? `Purchase a hint for ${hintPrice}`
                       : `Paid hint for ${hintPrice ?? 'a set price'} is unavailable`
                   }
                   title={
-                    hintAvailable && hintPrice
+                    offlineEdition ? 'Free hint — no payment required' : hintAvailable && hintPrice
                       ? `Hint price: ${hintPrice}`
                       : 'Checkout setup is pending; no charge can be made yet.'
                   }
                 >
                   <Lightbulb size={17} aria-hidden="true" />
-                  <span>{hintPrice ? `Hint · ${hintPrice}` : 'Hints unavailable'}</span>
+                  <span>{offlineEdition ? 'Free hint' : hintPrice ? `Hint · ${hintPrice}` : 'Hints unavailable'}</span>
                 </button>
               </div>
               <button
