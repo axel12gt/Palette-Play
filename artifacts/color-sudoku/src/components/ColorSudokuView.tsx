@@ -43,6 +43,7 @@ export type CellView = {
 export type ColorSudokuViewProps = {
   offlineEdition?: boolean;
   onHome?(): void;
+  onShowTutorial?(): void;
   cells: CellView[];
   palette: PaletteItem[];
   difficulty: Difficulty;
@@ -105,6 +106,7 @@ function getStatusKind(message: string) {
 export function ColorSudokuView({
   offlineEdition = false,
   onHome,
+  onShowTutorial,
   cells,
   palette,
   difficulty,
@@ -239,6 +241,9 @@ export function ColorSudokuView({
               {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
               {paused ? 'Resume' : 'Pause'}
             </button>
+            {onShowTutorial && <button className="header-badge tutorial-help" type="button" onClick={onShowTutorial} data-testid="button-how-to-play">
+              <CircleHelp size={14} aria-hidden="true" /> How to play
+            </button>}
           </div>
         </header>
 

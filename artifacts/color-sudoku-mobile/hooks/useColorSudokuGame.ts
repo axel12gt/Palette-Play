@@ -10,6 +10,7 @@ import { buildGame, conflictIndexes, detachOnlineRankings, parseSavedGame, snaps
 import { deleteOnlineRankingProfile, ensurePlayer, onlineRankingsBlocked, rankingPrivacy } from '@/lib/rankings';
 
 const STORAGE_KEY = 'color-sudoku-mobile.save.v1';
+const TUTORIAL_KEY = 'color-sudoku-mobile.tutorial.v1';
 const THEME_UNLOCKS: Partial<Record<GameTheme, number>> = { pastel: 1, neon: 3, dark: 5 };
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 const editable = (game: SavedGame) => game.screen === 'game' && !game.paused && !game.complete;
@@ -19,6 +20,7 @@ export function useColorSudokuGame() {
     ...buildGame('very-easy', 'classic', null, 0, 9), screen: 'home', paused: true, hasPuzzle: false,
   }));
   const [ready, setReady] = useState(false);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saveError, setSaveError] = useState('');
@@ -41,6 +43,23 @@ export function useColorSudokuGame() {
     }).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    AsyncStorage.getItem(TUTORIAL_KEY).then((seen) => {
+      if (active && seen !== 'seen') setTutorialVisible(true);
+    }).catch(() => {
+      // The optional walkthrough never blocks starting a puzzle.
+    });
+    return () => { active = false; };
+  }, [ready]);
+
+  const onCloseTutorial = useCallback(() => {
+    setTutorialVisible(false);
+    void AsyncStorage.setItem(TUTORIAL_KEY, 'seen').catch(() => undefined);
+  }, []);
+  const onShowTutorial = useCallback(() => setTutorialVisible(true), []);
 
   useEffect(() => {
     if (!ready || !writable.current) return;
@@ -208,6 +227,7 @@ export function useColorSudokuGame() {
     .filter((theme) => game.completedGames >= (THEME_UNLOCKS[theme] ?? 0)), [game.completedGames]);
   return {
     ...game, ready, busy, error, saveError, hasSavedPuzzle: game.hasPuzzle && !game.complete,
+    tutorialVisible, onCloseTutorial, onShowTutorial,
     ranked: !!game.rankedId, ...modeFor(game.size),
     // modeFor also returns size, but game.size is the authoritative saved value.
     palette: paletteByTheme[game.theme].slice(0, game.size), conflicts, unlockedThemes,

@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 
 import { boardModes, type BoardSize, type Difficulty } from '@/lib/sudoku';
 import type { useColorSudokuGame } from '@/hooks/useColorSudokuGame';
+import TutorialModal from '@/components/TutorialModal';
 import {
   AdBanner,
   Chip,
@@ -59,10 +60,20 @@ export default function HomeScreen({ game }: { game: Game }) {
           <Text style={[styles.tagline, { color: scene.muted, fontFamily: FONT.regular }]}>
             No numbers. Just one of each color in every row, column and block.
           </Text>
+          <Pressable
+            onPress={game.onShowTutorial}
+            accessibilityRole="button"
+            testID="button-how-to-play"
+            style={({ pressed }) => [styles.tutorialLink, pressed && shared.pressed]}
+          >
+            <Ionicons name="help-circle-outline" size={17} color={scene.primary} />
+            <Text style={{ color: scene.primary, fontFamily: FONT.semi, fontSize: 13 }}>How to play</Text>
+          </Pressable>
         </View>
 
         {game.error ? <Notice scene={scene} tone="error" text={game.error} testID="text-error" /> : null}
         {game.saveError ? <Notice scene={scene} tone="error" text={game.saveError} testID="text-save-error" /> : null}
+        <TutorialModal scene={scene} visible={game.tutorialVisible} onClose={game.onCloseTutorial} />
         {game.pendingResults.length ? (
           <Notice scene={scene} tone="error"
             text={`${game.pendingResults.length} completed ranked result(s) saved for upload. Retry when online. Rankings use the time your result reaches the server.`}
@@ -296,6 +307,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, gap: 14, width: '100%', maxWidth: 520, alignSelf: 'center' },
   flex: { flex: 1, minWidth: 0 },
   hero: { alignItems: 'center', paddingVertical: 10 },
+  tutorialLink: { marginTop: 12, minHeight: 40, paddingHorizontal: 14, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   mark: {
     width: 76,
     height: 76,

@@ -11,4 +11,17 @@
 .offline-choice.is-selected{border-color:var(--sea);background:color-mix(in srgb,var(--sea),transparent 90%)}
 .offline-choice input{accent-color:var(--sea)}
 .offline-footnote{font-size:12px;margin:16px 0 0}
+.tutorial-help{font-size:11px;padding:7px 9px}
+.tutorial-backdrop{position:fixed;inset:0;z-index:20;background:#13231e99;display:grid;place-items:center;padding:18px}
+.tutorial-card{width:min(100%,440px);max-height:90dvh;overflow:auto;border:1px solid var(--line);border-radius:24px;padding:24px;background:var(--paper);box-shadow:0 20px 70px #10241f40}
+.tutorial-icon{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;background:color-mix(in srgb,var(--sea),transparent 85%);color:var(--sea);margin-bottom:18px}
+.tutorial-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--ink-soft)}
+.tutorial-card h2{font:600 27px/1.2 var(--app-font-serif,Georgia,serif);color:var(--ink);margin:8px 0 12px}
+.tutorial-copy{font-size:15px;line-height:1.65;color:var(--ink-soft);min-height:72px}
+.tutorial-dots{display:flex;gap:7px;margin:22px 0}
+.tutorial-dots span{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.tutorial-dots span.is-current{background:var(--sea)}
+.tutorial-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.tutorial-actions button{min-height:44px}
+.tutorial-secondary{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-radius:12px;padding:0 12px;background:var(--board);color:var(--ink-soft);font-weight:700}
 @media(max-width:380px){.offline-home-card{padding:20px}.offline-home-card .brand-title{font-size:36px}}

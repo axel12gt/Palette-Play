@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TutorialOverlay } from './TutorialOverlay';
 import ColorSudokuView from '../src/components/ColorSudokuView';
 import { useSudokuGame } from '../src/lib/use-sudoku-game';
 import type { Difficulty } from '../src/lib/sudoku';
@@ -6,8 +7,16 @@ import type { Difficulty } from '../src/lib/sudoku';
 export default function OfflineGame() {
   const [playing, setPlaying] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('very-easy');
+  const [tutorialVisible, setTutorialVisible] = useState(() => {
+    try { return window.localStorage.getItem('palette-play.offline.tutorial.v1') !== 'seen'; }
+    catch { return true; }
+  });
   const game = useSudokuGame({ offlineEdition: true, active: playing });
   const canResume = game.hasSavedPuzzle && !game.complete;
+  const closeTutorial = () => {
+    setTutorialVisible(false);
+    try { window.localStorage.setItem('palette-play.offline.tutorial.v1', 'seen'); } catch { /* Tutorial can still be dismissed for this session. */ }
+  };
   const start = (daily = false) => {
     if (canResume && !window.confirm('Start a new puzzle? This will replace your saved puzzle.')) return;
     if (daily) game.onDailyChallenge();
@@ -16,10 +25,10 @@ export default function OfflineGame() {
   };
 
   if (playing) {
-    return <ColorSudokuView {...game} offlineEdition onHome={() => {
+    return <><ColorSudokuView {...game} offlineEdition onShowTutorial={() => setTutorialVisible(true)} onHome={() => {
       game.onPause();
       setPlaying(false);
-    }} />;
+    }} />{tutorialVisible && <TutorialOverlay onClose={closeTutorial} />}</>;
   }
 
   return (
@@ -31,6 +40,9 @@ export default function OfflineGame() {
         <p className="eyebrow">Your daily dose of color &amp; logic</p>
         <h1 id="home-title" className="brand-title">Palette Play</h1>
         <p>No numbers. Just one of each color in every row, column, and block.</p>
+        <button type="button" className="header-badge offline-wide" onClick={() => setTutorialVisible(true)} data-testid="button-how-to-play">
+          How to play
+        </button>
         {canResume && <button type="button" className="primary-button offline-wide" onClick={() => {
           game.onResume();
           setPlaying(true);
@@ -55,6 +67,7 @@ export default function OfflineGame() {
         <p className="offline-footnote">{game.completedGames} puzzles completed</p>
         {game.statusMessage.includes('storage is unavailable') && <p role="alert">{game.statusMessage}</p>}
       </section>
+      {tutorialVisible && <TutorialOverlay onClose={closeTutorial} />}
     </main>
   );
 }
