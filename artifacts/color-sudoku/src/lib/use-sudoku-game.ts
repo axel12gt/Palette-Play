@@ -212,11 +212,12 @@ function makeUndoFrame(game: SavedGame): UndoFrame {
   };
 }
 
-export function useSudokuGame({ offlineEdition = false } = {}) {
+export function useSudokuGame({ offlineEdition = false, active = true } = {}) {
   const saveKey = offlineEdition ? 'palette-play.offline.save.v1' : SAVE_KEY;
   const themeKey = offlineEdition ? 'palette-play.offline.theme.v1' : THEME_KEY;
   const dailyKey = offlineEdition ? 'palette-play.offline.daily.v1' : DAILY_COMPLETIONS_KEY;
   const [storageWarning, setStorageWarning] = useState('');
+  const [hasSavedPuzzle, setHasSavedPuzzle] = useState(() => readSavedGame(saveKey) !== null);
   const [game, setGame] = useState<SavedGame>(() => {
     const saved = readSavedGame(saveKey);
     if (saved) return saved;
@@ -238,16 +239,18 @@ export function useSudokuGame({ offlineEdition = false } = {}) {
   });
 
   useEffect(() => {
+    if (!active) return;
+    setHasSavedPuzzle(true);
     try {
       window.localStorage.setItem(saveKey, JSON.stringify(game));
       window.localStorage.setItem(themeKey, game.theme);
     } catch {
       setStorageWarning('Browser storage is unavailable. This game works, but progress will not be saved when you close it.');
     }
-  }, [game, saveKey, themeKey]);
+  }, [game, saveKey, themeKey, active]);
 
   useEffect(() => {
-    if (game.paused || game.complete) return;
+    if (!active || game.paused || game.complete) return;
     const interval = window.setInterval(() => {
       setGame((current) =>
         current.paused || current.complete
@@ -260,7 +263,7 @@ export function useSudokuGame({ offlineEdition = false } = {}) {
       );
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [game.paused, game.complete]);
+  }, [game.paused, game.complete, active]);
 
   const conflicts = useMemo(() => getConflictIndexes(game.board), [game.board]);
   const palette = useMemo(
@@ -565,6 +568,7 @@ export function useSudokuGame({ offlineEdition = false } = {}) {
   }, [conflicts, game.board, game.complete, game.paused, game.solution]);
 
   return {
+    hasSavedPuzzle,
     cells,
     palette: palette satisfies PaletteColor[],
     difficulty: game.difficulty,

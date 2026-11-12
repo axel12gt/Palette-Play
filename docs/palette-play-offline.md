@@ -16,6 +16,11 @@ daily puzzle, notes, color highlighting, drag/tap controls, undo, pause, and ear
 themes. Hints are free. It does not include the native app's 4×4 / 6×6 boards or
 online leaderboards. No online score is created or uploaded.
 
+Every launch opens the home screen. Choose a difficulty and start a new puzzle,
+play the daily challenge, or resume a saved game. The timer is stopped on the
+home screen. Use Home (or Save & return home while paused) to leave a puzzle.
+Starting a replacement puzzle asks for confirmation if an unfinished save exists.
+
 Progress uses separate browser-local storage keys and does not overwrite the
 existing web or mobile save. Local file storage behavior depends on the browser;
 keep using the same file/browser, or serve it from a stable static URL for more

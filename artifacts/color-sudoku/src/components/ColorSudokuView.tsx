@@ -42,6 +42,7 @@ export type CellView = {
 
 export type ColorSudokuViewProps = {
   offlineEdition?: boolean;
+  onHome?(): void;
   cells: CellView[];
   palette: PaletteItem[];
   difficulty: Difficulty;
@@ -103,6 +104,7 @@ function getStatusKind(message: string) {
 
 export function ColorSudokuView({
   offlineEdition = false,
+  onHome,
   cells,
   palette,
   difficulty,
@@ -240,6 +242,10 @@ export function ColorSudokuView({
           </div>
         </header>
 
+        {onHome && <button className="header-badge" type="button" onClick={onHome} data-testid="button-home">
+          Home
+        </button>}
+
         <div className="game-layout">
           <section className="play-column" aria-label="Puzzle board">
             <div className="intro-row">
@@ -312,6 +318,9 @@ export function ColorSudokuView({
                       <button className="primary-button" type="button" onClick={onResume} data-testid="button-resume">
                         <Play size={15} aria-hidden="true" /> Resume puzzle
                       </button>
+                      {onHome && <button className="header-badge" type="button" onClick={onHome} data-testid="button-pause-home">
+                        Save &amp; return home
+                      </button>}
                     </div>
                   </div>
                 )}
